@@ -140,4 +140,5 @@ dmypy.json
 cython_debug/
 
 *.db
+other_stuff/
 
