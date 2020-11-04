@@ -16,16 +16,31 @@ def timer(func):
     return wrapper
 
 
-def get_price_from_soup(soup: BeautifulSoup) -> float:
-    class_name = 'u7xnnm-4 iVazGO'
-    price_text = soup.find('div', attrs={'class': class_name}).get_text()
+def get_domain_from_url(url: str) -> str:
+    if 'x-kom.pl' in url:
+        return 'x-kom'
+    if 'delkom.pl' in url:
+        return 'delkom'
+
+
+def get_price_from_soup(soup: BeautifulSoup, domain: str) -> float:
+    data = {'x-kom': {'elem_type': 'div', 'class_name': 'u7xnnm-4 iVazGO'},
+            'delkom': {'elem_type': 'span', 'class_name': 'price'}}
+    elem_type = data[domain]['elem_type']
+    class_name = data[domain]['class_name']
+
+    price_text = soup.find(elem_type, attrs={'class': class_name}).get_text()
     price = price_text.removesuffix(' zł')
     return float(price.replace(' ', '').replace(',', '.'))
 
 
-def get_name_from_soup(soup: BeautifulSoup) -> str:
-    class_name = 'sc-1x6crnh-13 fXjZNH'
-    plain_text = soup.find('div', attrs={'class': class_name}).get_text().strip()
+def get_name_from_soup(soup: BeautifulSoup, domain: str) -> str:
+    data = {'x-kom': {'elem_type': 'div', 'class_name': 'sc-1x6crnh-13 fXjZNH'},
+            'delkom': {'elem_type': 'h1', 'class_name': 'columns twelve'}}
+    elem_type = data[domain]['elem_type']
+    class_name = data[domain]['class_name']
+
+    plain_text = soup.find(elem_type, attrs={'class': class_name}).get_text().strip()
     return re.sub(r'\s{2,}', ' ', plain_text)
 
 
@@ -36,23 +51,25 @@ def get_content_from_url(url: str) -> bytes:
     return r.content
 
 
-def get_soup_from_contents(contents: str, parse_type='html.parser') -> BeautifulSoup:
+def get_soup_from_contents(contents: str, parse_type='lxml') -> BeautifulSoup:
     return BeautifulSoup(contents, parse_type)
 
 
 @timer
 def main():
     sqlite = SQLite('prices.db')
-    urls = ['https://www.x-kom.pl/p/599015-notebook-laptop-156-lenovo-legion-5-15-ryzen-5-32gb-960-win10-gtx1650.html',
-            'https://www.x-kom.pl/p/602042-notebook-laptop-156-lenovo-legion-5-15-ryzen-5-32gb-512-gtx1650-120hz.html',
+    urls = ['https://www.x-kom.pl/p/602042-notebook-laptop-156-lenovo-legion-5-15-ryzen-5-32gb-512-gtx1650-120hz.html',
             'https://www.x-kom.pl/p/599019-notebook-laptop-156-lenovo-legion-5-15-ryzen-5-32gb-512-gtx1650ti-144hz.html',
-            'https://www.x-kom.pl/p/599012-notebook-laptop-156-lenovo-legion-5-15-ryzen-5-32gb-480-win10-gtx1650.html']
+            'https://www.delkom.pl/p/67116-laptop-lenovo-legion-5-15arh05-82b500ampb-16gb-ryzen-7-4800h-156fhd144hz-16gb-512ssd-gtx1650-noos.html',
+            'https://www.delkom.pl/p/67130-laptop-lenovo-legion-5-15arh05-82b500ampb-16gb-250ssd-ryzen-7-4800h-156fhd144hz-16gb-512ssd-250ssd-gtx1650-noos.html']
 
     with ThreadPoolExecutor() as executor:
         contents = executor.map(get_content_from_url, urls)
 
-    laptops = {url: {'name': get_name_from_soup(soup), 'price': get_price_from_soup(soup)}
-               for url, soup in zip(urls, map(get_soup_from_contents, contents))}
+    laptops = {url: {'name': f'{domain} - {get_name_from_soup(soup, domain)}',
+                     'price': get_price_from_soup(soup, domain)}
+               for url, soup, domain in zip(urls, map(get_soup_from_contents, contents),
+                                            map(get_domain_from_url, urls))}
 
     for details in laptops.values():
         sqlite.insert_data(details['name'], details['price'])
