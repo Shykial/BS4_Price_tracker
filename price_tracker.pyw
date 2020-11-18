@@ -81,8 +81,11 @@ def main():
         if new_lowest:
             previous_lowest = new_lowest[1]
             email_subject = f'{details["name"]} just lowered to {details["price"]}zł!'
-            email_body = f'{details["name"]} just got its price cut down from {previous_lowest} zł' \
-                         f' to {details["price"]} zł\n\nFor more details visit\n{url}'
+            email_body = f'''{details["name"]} 
+just got its price cut down from {previous_lowest} zł to {details["price"]} zł
+
+For more details visit
+{url}'''
             email_handler.send_email(receiver_address, subject=email_subject, body=email_body)
             print('email sent')
 
