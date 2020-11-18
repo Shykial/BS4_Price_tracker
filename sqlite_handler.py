@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime
+from typing import Union, Tuple
 
 
 class SQLite:
@@ -27,3 +28,14 @@ class SQLite:
         query = 'UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME=?'
         self.cursor.execute(query, (table,))
         self.conn.commit()
+
+    def is_lower_than_table_min(self, table: str, value: float,
+                                column: str = 'price') -> Union[bool, Tuple[bool, float]]:
+        query = f'SELECT MIN({column}) FROM "{table}"'
+        self.cursor.execute(query)
+        result = self.cursor.fetchone()[0]
+
+        if t := value < result:
+            return t, result
+        else:
+            return t
