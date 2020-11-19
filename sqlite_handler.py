@@ -32,8 +32,14 @@ class SQLite:
     def is_lower_than_table_min(self, table: str, value: float,
                                 column: str = 'price') -> Union[bool, Tuple[bool, float]]:
         query = f'SELECT MIN({column}) FROM "{table}"'
-        self.cursor.execute(query)
+        try:
+            self.cursor.execute(query)
+        except sqlite3.OperationalError:
+            return False  # returning False if table doesn't exist
         result = self.cursor.fetchone()[0]
+
+        if result is None:
+            return False  # returning False is table is empty
 
         if t := value < result:
             return t, result
