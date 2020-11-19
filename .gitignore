@@ -142,3 +142,4 @@ cython_debug/
 *.db
 other_stuff/
 *secret*
+resources.py
