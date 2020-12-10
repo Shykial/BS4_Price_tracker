@@ -33,6 +33,8 @@ def get_domain_from_url(url: str) -> str:
         return 'euro-rtv-agd'
     if 'amazon.com' in url:
         return 'amazon.com'
+    if 'ebay.com' in url:
+        return 'ebay.com'
     raise AttributeError(f'Domain in url: {url} not recognised')
 
 
@@ -41,15 +43,22 @@ def get_price_from_soup(soup: BeautifulSoup, domain: str) -> float:
             'delkom': {'elem_type': 'span', 'class_name': 'price'},
             'oleole': {'elem_type': 'div', 'class_name': 'price-normal selenium-price-normal'},
             'euro-rtv-agd': {'elem_type': 'div', 'class_name': 'product-price'},
-            'amazon.com': {'elem_type': 'span', 'id': 'priceblock_ourprice'}}
+            'amazon.com': {'elem_type': 'span', 'id': 'priceblock_ourprice'},
+            'ebay.com': {'elem_type': 'span', 'id': 'prcIsum'}}
+
     elem_type = data[domain]['elem_type']
     class_name = data[domain].get('class_name')  # avoiding KeyError
     elem_id = data[domain].get('id')  # avoiding KeyError
-
+    # re.findall(r'(?:(?<=price": ")|(?<=price: "))\d{1,4}\.\d{2}', str(soup))
     # temporary solution, cannot soup it directly
     if domain == 'euro-rtv-agd':
         try:
-            return float(re.search(r'(?<=price: ")\d{1,4}\.\d{2}', str(soup))[0])
+            # this should also include offer prices,
+            # splitting 2 lookbehinds as re module can only handle fixed length look behind
+            prices_pattern = re.compile(r'(?:(?<=price": ")|(?<=price: "))\d{1,4}\.\d{2}')
+
+            prices_strs = prices_pattern.findall(str(soup))
+            return min(map(float, prices_strs))
         except TypeError:
             raise AttributeError('Something went wrong there :(')
 
@@ -74,7 +83,8 @@ def get_name_from_soup(soup: BeautifulSoup, domain: str) -> str:
             'delkom': {'elem_type': 'h1', 'class_name': 'columns twelve'},
             'oleole': {'elem_type': 'h1', 'class_name': 'selenium-KP-product-name'},
             'euro-rtv-agd': {'elem_type': 'h1', 'class_name': 'product-name selenium-KP-product-name'},
-            'amazon.com': {'elem_type': 'span', 'id': 'productTitle'}}
+            'amazon.com': {'elem_type': 'span', 'id': 'productTitle'},
+            'ebay.com': {'elem_type': 'h1', 'id': 'itemTitle'}}
     elem_type = data[domain]['elem_type']
     class_name = data[domain].get('class_name')
     elem_id = data[domain].get('id')  # avoiding KeyError
@@ -94,8 +104,8 @@ def get_name_from_soup(soup: BeautifulSoup, domain: str) -> str:
 
 def get_content_from_url(url: str) -> bytes:
     headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
-               'x-requested-with': 'XMLHttpRequest'}
+                             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36'}
+
     r = requests.get(url, headers=headers)
     return r.content
 
