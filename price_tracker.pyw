@@ -2,7 +2,9 @@ import re
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
+from typing import AnyStr
 
+import regex
 import requests
 from bs4 import BeautifulSoup
 
@@ -49,16 +51,15 @@ def get_price_from_soup(soup: BeautifulSoup, domain: str) -> float:
     elem_type = data[domain]['elem_type']
     class_name = data[domain].get('class_name')  # avoiding KeyError
     elem_id = data[domain].get('id')  # avoiding KeyError
-    # re.findall(r'(?:(?<=price": ")|(?<=price: "))\d{1,4}\.\d{2}', str(soup))
+
     # temporary solution, cannot soup it directly
     if domain == 'euro-rtv-agd':
         try:
-            # this should also include offer prices,
-            # splitting 2 lookbehinds as re module can only handle fixed length look behind
-            prices_pattern = re.compile(r'(?:(?<=price": ")|(?<=price: "))\d{1,4}\.\d{2}')
-
-            prices_strs = prices_pattern.findall(str(soup))
-            return min(map(float, prices_strs))
+            # this should also include offer prices
+            # using regex module instead of re to handle non-fixed length lookbehind
+            price_pattern = regex.compile(r'(?<=price"?: "?)\d{1,4}\.\d{2}')
+            price_strings = price_pattern.findall(str(soup))
+            return min(map(float, price_strings))
         except TypeError:
             raise AttributeError('Something went wrong there :(')
 
@@ -66,8 +67,8 @@ def get_price_from_soup(soup: BeautifulSoup, domain: str) -> float:
 
     price_text = soup.find(elem_type, attrs=attrs).get_text()
     normalized_text = unicodedata.normalize("NFKD", price_text)
-    price_pattern = r'\d{1,3}[\s,.]?\d{1,3}(?:[,.]?\d{2})?'
-    price = re.search(price_pattern, normalized_text).group(0)
+    price_pattern = re.compile(r'\d{1,3}[\s,.]?\d{1,3}(?:[,.]?\d{2})?')
+    price = price_pattern.search(normalized_text).group(0)
 
     if ',' in price and '.' in price:  # to handle coma and dot at the same time, ex: 1,100.00 -> 1100.00
         price = price.replace(',', '')
@@ -110,7 +111,7 @@ def get_content_from_url(url: str) -> bytes:
     return r.content
 
 
-def get_soup_from_contents(contents: str, parse_type='lxml') -> BeautifulSoup:
+def get_soup_from_contents(contents: AnyStr, parse_type='lxml') -> BeautifulSoup:
     return BeautifulSoup(contents, parse_type)
 
 
@@ -135,7 +136,7 @@ def main():
 
     for url, details in laptops.items():
         new_lowest = sqlite.is_lower_than_table_min(details['name'], details['price'])
-        sqlite.insert_data(details['name'], details['price'])
+        sqlite.insert_data(details['name'], details['price'], transaction=True)
 
         if new_lowest:
             previous_lowest = new_lowest[1]
@@ -147,6 +148,8 @@ For more details visit
 {url}'''
             email_handler.send_email(receiver_address, subject=email_subject, body=email_body)
             print('email sent')
+
+    sqlite.conn.commit()  # ending transaction and committing changes to the database
 
 
 if __name__ == '__main__':
